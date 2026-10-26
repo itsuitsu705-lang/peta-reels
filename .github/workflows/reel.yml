@@ -14,13 +14,15 @@ concurrency: reel
 jobs:
   reel:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: 準備
+        timeout-minutes: 8
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-cjk
-          pip install -q numpy pillow scipy requests
+          pip install -q numpy pillow scipy requests imageio-ffmpeg
+          sudo ln -sf "$(python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" /usr/local/bin/ffmpeg
+          ffmpeg -version | head -1
       - name: 動画を作る
         env:
           REEL_DATE: ${{ github.event.inputs.date }}
