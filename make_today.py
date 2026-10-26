@@ -1,6 +1,6 @@
 """その日のリール動画を作る（GitHub Actions から実行）
 GAS（PETA受付ボット）から今日の画像のURLをもらい、make_reel.py で動画と表紙を作って reels/ に保存する。"""
-import base64, datetime, json, os, pathlib, subprocess, sys, time
+import datetime, json, os, pathlib, subprocess, sys, time
 import requests
 
 GAS = 'https://script.google.com/macros/s/AKfycbze-njgb4_xhXh5qXtHni0MgTOQ7cuf4AJKl3Aal2bgMS0-uGqHq6dkdhFwwxDSzmIT/exec'
@@ -32,7 +32,10 @@ def main():
             except SystemExit: print('フォントは標準のものを使います')
     for k, u in info['urls'].items():
         (work / f'{k}.jpg').write_bytes(get(u).content)
-    (work / 'logo.jpg').write_bytes(base64.b64decode((HERE / 'logo_b64.txt').read_text()))
+    # 最後の場面の丸いカードには、その日のスタンプを使う（中央を正方形に切り抜く）
+    from PIL import Image
+    im = Image.open(work / 'stamp.jpg').convert('RGB'); w, h = im.size; m = min(w, h)
+    im.crop(((w - m) // 2, (h - m) // 2, (w + m) // 2, (h + m) // 2)).resize((360, 360)).save(work / 'logo.jpg', quality=92)
     out = HERE / 'reels'; out.mkdir(exist_ok=True)
     cmd = [sys.executable, str(HERE / 'make_reel.py'), '--photo', str(work / 'photo.jpg'), '--cover', str(work / 'stamp.jpg'),
            '--sheet', str(work / 'sheet.jpg'), '--price', str(work / 'price.jpg'), '--logo', str(work / 'logo.jpg'),
