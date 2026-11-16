@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """『PETA』リール動画（本番用の型・毎回同じ構成）
-縦1080×1920／30fps／約25秒／字幕・効果・オルゴール風BGM入り
+縦1080×1920／30fps／約20秒／字幕・効果・オルゴール風BGM入り
 
 構成（毎回同じ）
-  1 つかみ        「うちの子が LINEスタンプに なったら…？」＋ペットの写真
+  1 つかみ        つかみの文字（日替わり）＋ペットの写真
   2 写真→スタンプ 写真が上に移動し、矢印の先にスタンプがポンと登場「写真を送るだけで この子らしいスタンプに」
   3 スタンプ紹介  9コマが1つずつポンと登場（セリフ付き）「表情もセリフも この子らしく」
   4 使う場面      LINEのトーク画面風（青い背景・白い吹き出し）でスタンプを送る「家族とのLINEが もっと楽しく」
@@ -44,6 +44,22 @@ DEFAULT = {
     'save': '保存して、あとで見返してね',
     'note': '※画像はAIで作ったイメージです',
 }
+
+
+# つかみの文字（動画の最初）と表紙の文字の組み合わせ。--seed の値で日替わり（同じ文字が続かないように）
+HOOKS = [
+    (['うちの子が', 'LINEスタンプに', 'なったら…？'], ['うちの子の写真が', 'LINEスタンプに！']),
+    (['この写真1枚が', '…こうなります'], ['写真1枚で', 'この仕上がり']),
+    (['家族LINEに', 'うちの子スタンプ', '送ってみたい？'], ['家族LINEが', 'もっと楽しく']),
+    (['スマホの中の', 'うちの子写真', 'スタンプに！'], ['スマホの写真が', 'スタンプに']),
+    (['「おはよう」も', 'うちの子で', '送れたら…'], ['あいさつは', 'うちの子で']),
+    (['写真を送るだけ', 'うちの子が', 'スタンプに'], ['写真を送るだけで', 'スタンプに']),
+]
+
+
+def hook_of(seed):
+    hook, thumb = HOOKS[seed % len(HOOKS)]
+    return {'hook': hook, 'thumb': thumb}
 
 
 # トークの内容（毎回変える。--seed の値で順番に選ぶ）
@@ -285,17 +301,17 @@ def build(a, cfg):
 
     def s_photo(c, d, t, T):
         sec = t * T
-        m = ease(min(1, sec / 0.8))                      # 写真が上へ移動
+        m = ease(min(1, sec / 0.6))                      # 写真が上へ移動
         lerp = lambda i: PH0[i] + (PH1[i] - PH0[i]) * m
         shadowed(c, photo, lerp(0), lerp(1), lerp(2), rot=lerp(3))
-        ks = back_out(min(1, max(0, (sec - 0.95) / 0.45)))   # スタンプがポンと登場
+        ks = back_out(min(1, max(0, (sec - 0.7) / 0.4)))     # スタンプがポンと登場
         if ks > 0.01:
             shadowed(c, char, ST[0], ST[1], st_scale * ks * (1 + 0.03 * max(0, sec - 1.4) / T))
         d = ImageDraw.Draw(c, 'RGBA')
-        caption(d, cfg['sub_photo'], max(0, sec - 1.0) / 0.6)
+        caption(d, cfg['sub_photo'], max(0, sec - 0.8) / 0.6)
         note(d)
 
-    gap = 0.42
+    gap = 0.3
     def s_stickers(c, d, t, T):
         sec = t * T
         cw, ch = W / 3, 290
@@ -363,9 +379,10 @@ def build(a, cfg):
         d.rounded_rectangle((150, 1250, W - 150, 1380), radius=65, fill=(232, 81, 122, int(255 * kk)))
         d.text((W / 2, 1315), cfg['save'], font=font(52), fill=(255, 255, 255, int(255 * kk)), anchor='mm')
 
-    scenes = [(2.8, s_hook), (3.8, s_photo), (0.2 + 9 * gap + 1.6, s_stickers), (4.6, s_chat), (3.6, s_price), (4.2, s_cta)]
-    start = 2.8 + 3.8
-    pops = [2.8 + 0.95] + [start + 0.2 + i * gap for i in range(9)]   # スタンプ登場の音も
+    # 最初の2秒で写真→スタンプの変化を見せ、全体は約20秒（最後まで見てもらいやすい長さ）
+    scenes = [(1.8, s_hook), (3.2, s_photo), (0.2 + 9 * gap + 1.4, s_stickers), (4.0, s_chat), (3.0, s_price), (3.4, s_cta)]
+    start = scenes[0][0] + scenes[1][0]
+    pops = [scenes[0][0] + 0.7] + [start + 0.2 + i * gap for i in range(9)]   # スタンプ登場の音も
     cstart = start + scenes[2][0]
     pops += [cstart + 0.25 + j * 1.0 for j, (s, _) in enumerate(cfg['chat']) if s == 'right']
     total = sum(s for s, _ in scenes)
@@ -402,6 +419,6 @@ if __name__ == '__main__':
     for k in ('photo', 'cover', 'sheet', 'price', 'logo', 'out'): ap.add_argument('--' + k, required=True)
     ap.add_argument('--thumb', default=''); ap.add_argument('--config', default=''); ap.add_argument('--seed', type=int, default=0)
     a = ap.parse_args()
-    cfg = dict(DEFAULT); cfg.update(chat_of(a.seed))   # トークの内容は seed（例：日付の番号）で毎回変わる
+    cfg = dict(DEFAULT); cfg.update(chat_of(a.seed)); cfg.update(hook_of(a.seed))   # トークの内容・つかみの文字は seed（日付の番号）で毎回変わる
     if a.config: cfg.update(json.load(open(a.config, encoding='utf-8')))
     print('秒数', round(build(a, cfg), 1))
